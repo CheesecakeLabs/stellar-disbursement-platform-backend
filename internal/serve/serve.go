@@ -576,14 +576,19 @@ func handleHTTP(o ServeOptions) *chi.Mux {
 			o.DistributionAccountService,
 			o.Models,
 		)
-		r.With(middleware.RequirePermission(
-			data.ReadAll,
-			middleware.AnyRoleMiddleware(authManager),
-		)).Get("/statements", httphandler.StatementsHandler{
+		statementsHandler := httphandler.StatementsHandler{
 			DistributionAccountResolver: o.SubmitterEngine.DistributionAccountResolver,
 			StatementService:            statementService,
 			StatementQueryValidator:     validators.NewStatementQueryValidator(),
-		}.GetStatement)
+		}
+		r.With(middleware.RequirePermission(
+			data.ReadAll,
+			middleware.AnyRoleMiddleware(authManager),
+		)).Get("/statements", statementsHandler.GetStatement)
+		r.With(middleware.RequirePermission(
+			data.ReadAll,
+			middleware.AnyRoleMiddleware(authManager),
+		)).Get("/statements/export", statementsHandler.GetStatementExport)
 
 		exportHandler := httphandler.ExportHandler{
 			Models: o.Models,
