@@ -571,6 +571,20 @@ func handleHTTP(o ServeOptions) *chi.Mux {
 			NetworkType:                 o.NetworkType,
 		}.Get)
 
+		statementService := services.NewStatementService(
+			o.SubmitterEngine.HorizonClient,
+			o.DistributionAccountService,
+			o.Models,
+		)
+		r.With(middleware.RequirePermission(
+			data.ReadAll,
+			middleware.AnyRoleMiddleware(authManager),
+		)).Get("/statements", httphandler.StatementsHandler{
+			DistributionAccountResolver: o.SubmitterEngine.DistributionAccountResolver,
+			StatementService:            statementService,
+			StatementQueryValidator:     validators.NewStatementQueryValidator(),
+		}.GetStatement)
+
 		exportHandler := httphandler.ExportHandler{
 			Models: o.Models,
 		}
