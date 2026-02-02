@@ -175,71 +175,106 @@ func (s *StatementService) resolveAsset(ctx context.Context, assetCode string) (
 	return nil, ErrStatementAssetNotFound
 }
 
+type transactionAccumulator struct {
+	transactions []StatementTransaction
+	totalCredits decimal.Decimal
+	totalDebits  decimal.Decimal
+	walletIDSet  map[string]struct{}
+}
+
 func (s *StatementService) fetchTransactionsInRange(
 	ctx context.Context,
 	accountAddress string,
 	asset *data.Asset,
 	fromStart, toEnd time.Time,
 ) ([]StatementTransaction, decimal.Decimal, decimal.Decimal, []string, error) {
-	var transactions []StatementTransaction
-	var totalCredits, totalDebits decimal.Decimal
-	walletIDSet := make(map[string]struct{})
+	accumulator := transactionAccumulator{
+		walletIDSet: make(map[string]struct{}),
+	}
 
 	req := horizonclient.TransactionRequest{
 		ForAccount: accountAddress,
 		Order:      horizonclient.OrderAsc,
 		Limit:      StatementTransactionsPageLimit,
 	}
-	pageCount := 0
 
-	for {
-		if pageCount >= MaxStatementTransactionsPages {
-			break
-		}
-		pageCount++
-
+	for pageCount := 0; pageCount < MaxStatementTransactionsPages; pageCount++ {
 		page, err := s.HorizonClient.Transactions(req)
 		if err != nil {
 			return nil, decimal.Zero, decimal.Zero, nil, fmt.Errorf("fetching transactions: %w", err)
 		}
 
-		for i := range page.Embedded.Records {
-			tx := page.Embedded.Records[i]
-			createdAt := tx.LedgerCloseTime
-			if createdAt.Before(fromStart) {
-				continue
-			}
-			if createdAt.After(toEnd) {
-				// no need to fetch more pages
-				return transactions, totalCredits, totalDebits, mapKeysToSlice(walletIDSet), nil
-			}
-
-			lines, credits, debits, walletIDs, err := s.processTransaction(ctx, &tx, accountAddress, asset)
-			if err != nil {
-				return nil, decimal.Zero, decimal.Zero, nil, err
-			}
-			transactions = append(transactions, lines...)
-			totalCredits = totalCredits.Add(credits)
-			totalDebits = totalDebits.Add(debits)
-			for _, id := range walletIDs {
-				walletIDSet[id] = struct{}{}
-			}
-		}
-
-		if len(page.Embedded.Records) < StatementTransactionsPageLimit {
-			break
-		}
-		nextPage, err := s.HorizonClient.NextTransactionsPage(page)
+		shouldStop, err := s.processTransactionPage(ctx, page, accountAddress, asset, fromStart, toEnd, &accumulator)
 		if err != nil {
-			return nil, decimal.Zero, decimal.Zero, nil, fmt.Errorf("next transactions page: %w", err)
+			return nil, decimal.Zero, decimal.Zero, nil, err
 		}
-		if len(nextPage.Embedded.Records) == 0 {
+		if shouldStop {
 			break
 		}
-		req.Cursor = nextPage.Embedded.Records[0].PT
+
+		if !s.shouldContinuePagination(page) {
+			break
+		}
+
+		req.Cursor, err = s.getNextPageCursor(page)
+		if err != nil {
+			return nil, decimal.Zero, decimal.Zero, nil, err
+		}
+		if req.Cursor == "" {
+			break
+		}
 	}
 
-	return transactions, totalCredits, totalDebits, mapKeysToSlice(walletIDSet), nil
+	return accumulator.transactions, accumulator.totalCredits, accumulator.totalDebits, mapKeysToSlice(accumulator.walletIDSet), nil
+}
+
+func (s *StatementService) processTransactionPage(
+	ctx context.Context,
+	page horizon.TransactionsPage,
+	accountAddress string,
+	asset *data.Asset,
+	fromStart, toEnd time.Time,
+	accumulator *transactionAccumulator,
+) (shouldStop bool, err error) {
+	for i := range page.Embedded.Records {
+		tx := page.Embedded.Records[i]
+		createdAt := tx.LedgerCloseTime
+
+		if createdAt.Before(fromStart) {
+			continue
+		}
+		if createdAt.After(toEnd) {
+			return true, nil
+		}
+
+		lines, credits, debits, walletIDs, err := s.processTransaction(ctx, &tx, accountAddress, asset)
+		if err != nil {
+			return false, err
+		}
+
+		accumulator.transactions = append(accumulator.transactions, lines...)
+		accumulator.totalCredits = accumulator.totalCredits.Add(credits)
+		accumulator.totalDebits = accumulator.totalDebits.Add(debits)
+		for _, id := range walletIDs {
+			accumulator.walletIDSet[id] = struct{}{}
+		}
+	}
+	return false, nil
+}
+
+func (s *StatementService) shouldContinuePagination(page horizon.TransactionsPage) bool {
+	return len(page.Embedded.Records) >= StatementTransactionsPageLimit
+}
+
+func (s *StatementService) getNextPageCursor(page horizon.TransactionsPage) (string, error) {
+	nextPage, err := s.HorizonClient.NextTransactionsPage(page)
+	if err != nil {
+		return "", fmt.Errorf("next transactions page: %w", err)
+	}
+	if len(nextPage.Embedded.Records) == 0 {
+		return "", nil
+	}
+	return nextPage.Embedded.Records[0].PT, nil
 }
 
 func (s *StatementService) processTransaction(

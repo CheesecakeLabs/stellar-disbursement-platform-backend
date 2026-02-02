@@ -19,6 +19,9 @@ import (
 	"github.com/stellar/stellar-disbursement-platform-backend/pkg/schema"
 )
 
+const testQueryParams = "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31"
+const emptyBalance = "0.0000000"
+
 type mockStatementService struct {
 	mock.Mock
 }
@@ -31,7 +34,7 @@ func (m *mockStatementService) GetStatement(ctx context.Context, account *schema
 	return args.Get(0).(*services.StatementResult), args.Error(1)
 }
 
-func Test_StatementsHandler_GetStatement(t *testing.T) {
+func TestStatementsHandlerGetStatement(t *testing.T) {
 	stellarAccount := schema.TransactionAccount{
 		Address: "GDNRRK5EXMZ4STV7UTO3CW4LSVNY5KYWTM3J7BM5SQNA7KE2RYX55IYV",
 		Type:    schema.DistributionAccountStellarEnv,
@@ -40,16 +43,16 @@ func Test_StatementsHandler_GetStatement(t *testing.T) {
 		Summary: services.StatementSummary{
 			Account:           "stellar:GDNRRK5EXMZ4STV7UTO3CW4LSVNY5KYWTM3J7BM5SQNA7KE2RYX55IYV",
 			Asset:             services.AssetRef{Code: "XLM"},
-			BeginningBalance:  "0.0000000",
-			TotalCredits:      "0.0000000",
-			TotalDebits:       "0.0000000",
+			BeginningBalance:  emptyBalance,
+			TotalCredits:      emptyBalance,
+			TotalDebits:       emptyBalance,
 			EndingBalance:     "9.7998900",
 			InvolvedWalletIDs: []string{"07815404-eb0d-4188-a362-38a90aae185c"},
 		},
 		Transactions: []services.StatementTransaction{},
 		Totals: services.StatementTotals{
-			TotalDebits:  "0.0000000",
-			TotalCredits: "0.0000000",
+			TotalDebits:  emptyBalance,
+			TotalCredits: emptyBalance,
 			Balance:      "9.7998900",
 		},
 	}
@@ -84,7 +87,7 @@ func Test_StatementsHandler_GetStatement(t *testing.T) {
 		},
 		{
 			name:   "returns 500 when distribution account resolver fails",
-			query:  "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31",
+			query:  testQueryParams,
 			prepareMocks: func(_ *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(schema.TransactionAccount{}, errors.New("resolver error")).
@@ -95,7 +98,7 @@ func Test_StatementsHandler_GetStatement(t *testing.T) {
 		},
 		{
 			name:   "returns 400 when account is not Stellar",
-			query:  "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31",
+			query:  testQueryParams,
 			prepareMocks: func(_ *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(schema.TransactionAccount{Type: schema.DistributionAccountCircleDBVault}, nil).
@@ -106,7 +109,7 @@ func Test_StatementsHandler_GetStatement(t *testing.T) {
 		},
 		{
 			name:   "returns 404 when asset not found for account",
-			query:  "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31",
+			query:  testQueryParams,
 			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(stellarAccount, nil).
@@ -124,7 +127,7 @@ func Test_StatementsHandler_GetStatement(t *testing.T) {
 		},
 		{
 			name:   "returns 500 when statement service fails with unexpected error",
-			query:  "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31",
+			query:  testQueryParams,
 			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(stellarAccount, nil).
@@ -142,7 +145,7 @@ func Test_StatementsHandler_GetStatement(t *testing.T) {
 		},
 		{
 			name:   "returns 200 and JSON shape on success",
-			query:  "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31",
+			query:  testQueryParams,
 			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(stellarAccount, nil).

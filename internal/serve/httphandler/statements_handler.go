@@ -10,9 +10,11 @@ import (
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/httperror"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/validators"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/services"
-	"github.com/stellar/stellar-disbursement-platform-backend/internal/statementpdf"
+	"github.com/stellar/stellar-disbursement-platform-backend/internal/pdf"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/transactionsubmission/engine/signing"
 )
+
+const errStatementOnlySupportedForStellar = "Statement is only supported for Stellar distribution accounts"
 
 // StatementsHandler handles GET /statements for the account statement endpoint.
 type StatementsHandler struct {
@@ -38,7 +40,7 @@ func (h StatementsHandler) GetStatement(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !distAccount.IsStellar() {
-		httperror.BadRequest("Statement is only supported for Stellar distribution accounts", nil, nil).Render(w)
+		httperror.BadRequest(errStatementOnlySupportedForStellar, nil, nil).Render(w)
 		return
 	}
 
@@ -46,7 +48,7 @@ func (h StatementsHandler) GetStatement(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrStatementAccountNotStellar):
-			httperror.BadRequest("Statement is only supported for Stellar distribution accounts", err, nil).Render(w)
+			httperror.BadRequest(errStatementOnlySupportedForStellar, err, nil).Render(w)
 			return
 		case errors.Is(err, services.ErrStatementAssetNotFound):
 			httperror.NotFound("asset not found for account", err, nil).Render(w)
@@ -77,7 +79,7 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 	}
 
 	if !distAccount.IsStellar() {
-		httperror.BadRequest("Statement is only supported for Stellar distribution accounts", nil, nil).Render(w)
+		httperror.BadRequest(errStatementOnlySupportedForStellar, nil, nil).Render(w)
 		return
 	}
 
@@ -85,7 +87,7 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrStatementAccountNotStellar):
-			httperror.BadRequest("Statement is only supported for Stellar distribution accounts", err, nil).Render(w)
+			httperror.BadRequest(errStatementOnlySupportedForStellar, err, nil).Render(w)
 			return
 		case errors.Is(err, services.ErrStatementAssetNotFound):
 			httperror.NotFound("asset not found for account", err, nil).Render(w)
@@ -96,7 +98,7 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	pdfBytes, err := statementpdf.BuildPDF(result, params.FromDate, params.ToDate)
+	pdfBytes, err := pdf.BuildPDF(result, params.FromDate, params.ToDate)
 	if err != nil {
 		httperror.InternalError(ctx, "Cannot generate statement PDF", err, nil).Render(w)
 		return
