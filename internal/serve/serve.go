@@ -580,6 +580,7 @@ func handleHTTP(o ServeOptions) *chi.Mux {
 			DistributionAccountResolver: o.SubmitterEngine.DistributionAccountResolver,
 			StatementService:            statementService,
 			StatementQueryValidator:     validators.NewStatementQueryValidator(),
+			Models:                      o.Models,
 		}
 		r.With(middleware.RequirePermission(
 			data.ReadAll,

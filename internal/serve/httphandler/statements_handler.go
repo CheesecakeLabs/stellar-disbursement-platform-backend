@@ -7,10 +7,12 @@ import (
 
 	"github.com/stellar/go-stellar-sdk/support/render/httpjson"
 
+	"github.com/stellar/stellar-disbursement-platform-backend/internal/data"
+	"github.com/stellar/stellar-disbursement-platform-backend/internal/pdf"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/httperror"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/validators"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/services"
-	"github.com/stellar/stellar-disbursement-platform-backend/internal/pdf"
+	"github.com/stellar/stellar-disbursement-platform-backend/internal/sdpcontext"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/transactionsubmission/engine/signing"
 )
 
@@ -21,6 +23,7 @@ type StatementsHandler struct {
 	DistributionAccountResolver signing.DistributionAccountResolver
 	StatementService            services.StatementServiceInterface
 	StatementQueryValidator     *validators.StatementQueryValidator
+	Models                      *data.Models
 }
 
 // GetStatement returns the statement for the authenticated tenant's distribution account.
@@ -98,7 +101,20 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	pdfBytes, err := pdf.BuildPDF(result, params.FromDate, params.ToDate)
+	tenant, err := sdpcontext.GetTenantFromContext(ctx)
+	if err != nil {
+		httperror.InternalError(ctx, "Cannot retrieve tenant", err, nil).Render(w)
+		return
+	}
+	orgName := tenant.Name
+	var orgLogo []byte
+	if h.Models != nil {
+		if org, err := h.Models.Organizations.Get(ctx); err == nil {
+			orgLogo = org.Logo
+		}
+	}
+
+	pdfBytes, err := pdf.BuildPDF(result, params.FromDate, params.ToDate, orgName, orgLogo)
 	if err != nil {
 		httperror.InternalError(ctx, "Cannot generate statement PDF", err, nil).Render(w)
 		return
