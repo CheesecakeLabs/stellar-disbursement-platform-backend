@@ -12,7 +12,6 @@ import (
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/httperror"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/validators"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/services"
-	"github.com/stellar/stellar-disbursement-platform-backend/internal/sdpcontext"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/transactionsubmission/engine/signing"
 )
 
@@ -101,15 +100,11 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	tenant, err := sdpcontext.GetTenantFromContext(ctx)
-	if err != nil {
-		httperror.InternalError(ctx, "Cannot retrieve tenant", err, nil).Render(w)
-		return
-	}
-	orgName := tenant.Name
+	var orgName string
 	var orgLogo []byte
 	if h.Models != nil {
 		if org, err := h.Models.Organizations.Get(ctx); err == nil {
+			orgName = org.Name
 			orgLogo = org.Logo
 		}
 	}
