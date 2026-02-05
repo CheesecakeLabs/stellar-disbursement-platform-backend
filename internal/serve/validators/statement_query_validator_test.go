@@ -19,12 +19,14 @@ func Test_StatementQueryValidator_ValidateAndGetStatementParams(t *testing.T) {
 		assert.Equal(t, time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC), params.ToDate)
 	})
 
-	t.Run("missing asset_code", func(t *testing.T) {
+	t.Run("missing asset_code is valid (all assets)", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/statements?from_date=2026-01-01&to_date=2026-01-31", nil)
 		v := NewStatementQueryValidator()
-		_ = v.ValidateAndGetStatementParams(req)
-		assert.True(t, v.HasErrors())
-		assert.Equal(t, "asset_code is required", v.Errors["asset_code"])
+		params := v.ValidateAndGetStatementParams(req)
+		assert.False(t, v.HasErrors())
+		assert.Equal(t, "", params.AssetCode)
+		assert.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), params.FromDate)
+		assert.Equal(t, time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC), params.ToDate)
 	})
 
 	t.Run("missing from_date", func(t *testing.T) {

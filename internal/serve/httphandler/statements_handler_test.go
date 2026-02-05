@@ -41,19 +41,17 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 	}
 	successResult := &services.StatementResult{
 		Summary: services.StatementSummary{
-			Account:           "stellar:GDNRRK5EXMZ4STV7UTO3CW4LSVNY5KYWTM3J7BM5SQNA7KE2RYX55IYV",
-			Asset:             services.AssetRef{Code: "XLM"},
-			BeginningBalance:  emptyBalance,
-			TotalCredits:      emptyBalance,
-			TotalDebits:       emptyBalance,
-			EndingBalance:     "9.7998900",
-			InvolvedWalletIDs: []string{"07815404-eb0d-4188-a362-38a90aae185c"},
-		},
-		Transactions: []services.StatementTransaction{},
-		Totals: services.StatementTotals{
-			TotalDebits:  emptyBalance,
-			TotalCredits: emptyBalance,
-			Balance:      "9.7998900",
+			Account: "stellar:GDNRRK5EXMZ4STV7UTO3CW4LSVNY5KYWTM3J7BM5SQNA7KE2RYX55IYV",
+			Assets: []services.StatementAssetSummary{
+				{
+					Code:             "XLM",
+					BeginningBalance: emptyBalance,
+					TotalCredits:     emptyBalance,
+					TotalDebits:      emptyBalance,
+					EndingBalance:    "9.7998900",
+					Transactions:     []services.StatementTransaction{},
+				},
+			},
 		},
 	}
 
@@ -65,11 +63,22 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 		expectedContains string
 	}{
 		{
-			name:   "returns 400 when asset_code is missing",
+			name:   "returns 200 when asset_code is omitted (all assets)",
 			query:  "?from_date=2026-01-01&to_date=2026-01-31",
-			prepareMocks: func(_ *mockStatementService, _ *sigMocks.MockDistributionAccountResolver) {},
-			expectedStatus:   http.StatusBadRequest,
-			expectedContains: "asset_code",
+			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
+				mResolver.On("DistributionAccountFromContext", mock.Anything).
+					Return(stellarAccount, nil).
+					Once()
+				mSvc.On("GetStatement", mock.Anything, mock.MatchedBy(func(a *schema.TransactionAccount) bool {
+					return a != nil && a.Address == stellarAccount.Address && a.Type == stellarAccount.Type
+				}), "",
+					time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)).
+					Return(successResult, nil).
+					Once()
+			},
+			expectedStatus:   http.StatusOK,
+			expectedContains: "summary",
 		},
 		{
 			name:   "returns 400 when from_date is missing",
@@ -189,9 +198,7 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 
 			if tc.expectedStatus == http.StatusOK {
 				assert.Contains(t, string(body), `"summary"`)
-				assert.Contains(t, string(body), `"transactions"`)
-				assert.Contains(t, string(body), `"totals"`)
-				assert.Contains(t, string(body), `"involved_wallet_ids"`)
+				assert.Contains(t, string(body), `"assets"`)
 			}
 		})
 	}

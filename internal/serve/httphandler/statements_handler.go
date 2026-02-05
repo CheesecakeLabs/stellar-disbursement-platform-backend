@@ -115,8 +115,12 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	assetPart := params.AssetCode
+	if assetPart == "" {
+		assetPart = "all"
+	}
 	filename := fmt.Sprintf("statement_%s_%s_%s.pdf",
-		params.AssetCode,
+		assetPart,
 		params.FromDate.Format("2006-01-02"),
 		params.ToDate.Format("2006-01-02"))
 	w.Header().Set("Content-Type", "application/pdf")

@@ -28,14 +28,12 @@ func NewStatementQueryValidator() *StatementQueryValidator {
 }
 
 // ValidateAndGetStatementParams validates the request query and returns statement params.
-// Required: asset_code, from_date, to_date. Dates must be YYYY-MM-DD; from_date must be <= to_date.
+// Required: from_date, to_date. Optional: asset_code (empty = all assets). Dates must be YYYY-MM-DD; from_date must be <= to_date.
 func (v *StatementQueryValidator) ValidateAndGetStatementParams(r *http.Request) StatementQueryParams {
 	query := r.URL.Query()
 	assetCode := strings.TrimSpace(query.Get("asset_code"))
 	fromDateStr := strings.TrimSpace(query.Get("from_date"))
 	toDateStr := strings.TrimSpace(query.Get("to_date"))
-
-	v.Check(assetCode != "", "asset_code", "asset_code is required")
 
 	var fromDate, toDate time.Time
 	if fromDateStr != "" {

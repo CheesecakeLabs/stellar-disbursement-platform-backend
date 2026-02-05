@@ -36,20 +36,23 @@ type StatementServiceInterface interface {
 
 // StatementResult is the full statement response.
 type StatementResult struct {
-	Summary      StatementSummary       `json:"summary"`
-	Transactions []StatementTransaction `json:"transactions"`
-	Totals       StatementTotals        `json:"totals"`
+	Summary StatementSummary `json:"summary"`
 }
 
 // StatementSummary holds the statement summary section.
 type StatementSummary struct {
-	Account            string   `json:"account"`
-	Asset              AssetRef `json:"asset"`
-	BeginningBalance   string   `json:"beginning_balance"`
-	TotalCredits       string   `json:"total_credits"`
-	TotalDebits        string   `json:"total_debits"`
-	EndingBalance      string   `json:"ending_balance"`
-	InvolvedWalletIDs  []string `json:"involved_wallet_ids"`
+	Account string                  `json:"account"`
+	Assets  []StatementAssetSummary `json:"assets"`
+}
+
+// StatementAssetSummary holds per-asset summary and transactions.
+type StatementAssetSummary struct {
+	Code             string                `json:"code"`
+	BeginningBalance string                `json:"beginning_balance"`
+	TotalCredits     string                `json:"total_credits"`
+	TotalDebits      string                `json:"total_debits"`
+	EndingBalance    string                `json:"ending_balance"`
+	Transactions     []StatementTransaction `json:"transactions"`
 }
 
 // AssetRef is a minimal asset reference for JSON.
@@ -59,13 +62,14 @@ type AssetRef struct {
 
 // StatementTransaction is a single transaction line in the statement.
 type StatementTransaction struct {
-	ID                 string  `json:"id"`
-	CreatedAt          string  `json:"created_at"`
-	Type               string  `json:"type"` // "credit" or "debit"
-	Amount             string  `json:"amount"`
+	ID                  string `json:"id"`
+	CreatedAt           string `json:"created_at"`
+	UpdatedAt           string `json:"updated_at"`
+	Type                string `json:"type"`
+	Amount              string `json:"amount"`
 	CounterpartyAddress string `json:"counterparty_address"`
-	CounterpartyName   string  `json:"counterparty_name,omitempty"`
-	WalletID           string  `json:"wallet_id,omitempty"`
+	CounterpartyName    string `json:"counterparty_name,omitempty"`
+	ExternalPaymentID   string `json:"external_payment_id,omitempty"`
 }
 
 // StatementTotals holds the totals section.
@@ -97,59 +101,89 @@ func NewStatementService(
 
 var _ StatementServiceInterface = (*StatementService)(nil)
 
-// GetStatement returns the statement for the given account, asset, and date range.
+// GetStatement returns the statement for the given account, asset (optional), and date range.
 func (s *StatementService) GetStatement(ctx context.Context, account *schema.TransactionAccount, assetCode string, fromDate, toDate time.Time) (*StatementResult, error) {
 	if !account.IsStellar() {
 		return nil, ErrStatementAccountNotStellar
 	}
 
-	asset, err := s.resolveAsset(ctx, assetCode)
-	if err != nil {
-		return nil, err
-	}
-
-	endingBalance, err := s.DistributionAccountSvc.GetBalance(ctx, account, *asset)
-	if err != nil {
-		if errors.Is(err, ErrNoBalanceForAsset) {
-			return nil, ErrStatementAssetNotFound
-		}
-		return nil, fmt.Errorf("getting balance: %w", err)
-	}
-
 	fromStart := time.Date(fromDate.Year(), fromDate.Month(), fromDate.Day(), 0, 0, 0, 0, time.UTC)
 	toEnd := time.Date(toDate.Year(), toDate.Month(), toDate.Day(), 23, 59, 59, 999999999, time.UTC)
 
-	transactions, totalCredits, totalDebits, involvedWalletIDs, err := s.fetchTransactionsInRange(ctx, account.Address, asset, fromStart, toEnd)
-	if err != nil {
-		return nil, err
+	var assetsToProcess []*data.Asset
+	if assetCode != "" {
+		asset, err := s.resolveAsset(ctx, assetCode)
+		if err != nil {
+			return nil, err
+		}
+		assetsToProcess = []*data.Asset{asset}
+	} else {
+		balances, err := s.DistributionAccountSvc.GetBalances(ctx, account)
+		if err != nil {
+			return nil, fmt.Errorf("getting balances: %w", err)
+		}
+		for a := range balances {
+			asset := a
+			assetsToProcess = append(assetsToProcess, &asset)
+		}
 	}
 
-	// beginning_balance = ending_balance - total_credits + total_debits (replay)
-	beginningBalance := endingBalance.Sub(totalCredits).Add(totalDebits)
-	if beginningBalance.LessThan(decimal.Zero) {
-		beginningBalance = decimal.Zero
+	assetSummaries := make([]StatementAssetSummary, 0, len(assetsToProcess))
+	now := time.Now().UTC()
+	afterPeriodStart := time.Date(toDate.Year(), toDate.Month(), toDate.Day()+1, 0, 0, 0, 0, time.UTC)
+	afterPeriodEnd := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
+
+	for _, asset := range assetsToProcess {
+		currentBalance, err := s.DistributionAccountSvc.GetBalance(ctx, account, *asset)
+		if err != nil {
+			if errors.Is(err, ErrNoBalanceForAsset) {
+				continue
+			}
+			return nil, fmt.Errorf("getting balance: %w", err)
+		}
+
+		transactions, totalCredits, totalDebits, err := s.fetchTransactionsInRange(ctx, account.Address, asset, fromStart, toEnd)
+		if err != nil {
+			return nil, err
+		}
+
+		var creditsAfter, debitsAfter decimal.Decimal
+		if !afterPeriodStart.After(afterPeriodEnd) {
+			creditsAfter, debitsAfter, err = s.fetchTotalsInRange(ctx, account.Address, asset, afterPeriodStart, afterPeriodEnd)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		endingBalance := currentBalance.Sub(creditsAfter).Add(debitsAfter)
+		beginningBalance := endingBalance.Sub(totalCredits).Add(totalDebits)
+		if beginningBalance.LessThan(decimal.Zero) {
+			beginningBalance = decimal.Zero
+		}
+
+		codeDisplay := asset.Code
+		if asset.IsNative() {
+			codeDisplay = assets.XLMAssetCode
+		}
+
+		assetSummaries = append(assetSummaries, StatementAssetSummary{
+			Code:             codeDisplay,
+			BeginningBalance: formatStellarAmount(beginningBalance),
+			TotalCredits:     formatStellarAmount(totalCredits),
+			TotalDebits:      formatStellarAmount(totalDebits),
+			EndingBalance:    formatStellarAmount(endingBalance),
+			Transactions:     transactions,
+		})
 	}
 
-	assetCodeDisplay := asset.Code
-	if asset.IsNative() {
-		assetCodeDisplay = assets.XLMAssetCode
+	if len(assetSummaries) == 0 && assetCode != "" {
+		return nil, ErrStatementAssetNotFound
 	}
 
 	return &StatementResult{
 		Summary: StatementSummary{
-			Account:           "stellar:" + account.Address,
-			Asset:              AssetRef{Code: assetCodeDisplay},
-			BeginningBalance:   formatStellarAmount(beginningBalance),
-			TotalCredits:       formatStellarAmount(totalCredits),
-			TotalDebits:        formatStellarAmount(totalDebits),
-			EndingBalance:      formatStellarAmount(endingBalance),
-			InvolvedWalletIDs:  involvedWalletIDs,
-		},
-		Transactions: transactions,
-		Totals: StatementTotals{
-			TotalDebits:  formatStellarAmount(totalDebits),
-			TotalCredits: formatStellarAmount(totalCredits),
-			Balance:      formatStellarAmount(endingBalance),
+			Account: "stellar:" + account.Address,
+			Assets:  assetSummaries,
 		},
 	}, nil
 }
@@ -176,10 +210,10 @@ func (s *StatementService) resolveAsset(ctx context.Context, assetCode string) (
 }
 
 type transactionAccumulator struct {
-	transactions []StatementTransaction
-	totalCredits decimal.Decimal
-	totalDebits  decimal.Decimal
-	walletIDSet  map[string]struct{}
+	transactions        []StatementTransaction
+	totalCredits        decimal.Decimal
+	totalDebits         decimal.Decimal
+	collectTransactions bool
 }
 
 func (s *StatementService) fetchTransactionsInRange(
@@ -187,10 +221,8 @@ func (s *StatementService) fetchTransactionsInRange(
 	accountAddress string,
 	asset *data.Asset,
 	fromStart, toEnd time.Time,
-) ([]StatementTransaction, decimal.Decimal, decimal.Decimal, []string, error) {
-	accumulator := transactionAccumulator{
-		walletIDSet: make(map[string]struct{}),
-	}
+) ([]StatementTransaction, decimal.Decimal, decimal.Decimal, error) {
+	accumulator := transactionAccumulator{collectTransactions: true}
 
 	req := horizonclient.TransactionRequest{
 		ForAccount: accountAddress,
@@ -201,12 +233,12 @@ func (s *StatementService) fetchTransactionsInRange(
 	for pageCount := 0; pageCount < MaxStatementTransactionsPages; pageCount++ {
 		page, err := s.HorizonClient.Transactions(req)
 		if err != nil {
-			return nil, decimal.Zero, decimal.Zero, nil, fmt.Errorf("fetching transactions: %w", err)
+			return nil, decimal.Zero, decimal.Zero, fmt.Errorf("fetching transactions: %w", err)
 		}
 
 		shouldStop, err := s.processTransactionPage(ctx, page, accountAddress, asset, fromStart, toEnd, &accumulator)
 		if err != nil {
-			return nil, decimal.Zero, decimal.Zero, nil, err
+			return nil, decimal.Zero, decimal.Zero, err
 		}
 		if shouldStop {
 			break
@@ -218,14 +250,59 @@ func (s *StatementService) fetchTransactionsInRange(
 
 		req.Cursor, err = s.getNextPageCursor(page)
 		if err != nil {
-			return nil, decimal.Zero, decimal.Zero, nil, err
+			return nil, decimal.Zero, decimal.Zero, err
 		}
 		if req.Cursor == "" {
 			break
 		}
 	}
 
-	return accumulator.transactions, accumulator.totalCredits, accumulator.totalDebits, mapKeysToSlice(accumulator.walletIDSet), nil
+	return accumulator.transactions, accumulator.totalCredits, accumulator.totalDebits, nil
+}
+
+// fetchTotalsInRange returns total credits and debits in the given range without building the transaction list.
+func (s *StatementService) fetchTotalsInRange(
+	ctx context.Context,
+	accountAddress string,
+	asset *data.Asset,
+	fromStart, toEnd time.Time,
+) (totalCredits, totalDebits decimal.Decimal, err error) {
+	accumulator := transactionAccumulator{collectTransactions: false}
+
+	req := horizonclient.TransactionRequest{
+		ForAccount: accountAddress,
+		Order:      horizonclient.OrderAsc,
+		Limit:      StatementTransactionsPageLimit,
+	}
+
+	for pageCount := 0; pageCount < MaxStatementTransactionsPages; pageCount++ {
+		page, err := s.HorizonClient.Transactions(req)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, fmt.Errorf("fetching transactions: %w", err)
+		}
+
+		shouldStop, err := s.processTransactionPage(ctx, page, accountAddress, asset, fromStart, toEnd, &accumulator)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, err
+		}
+		if shouldStop {
+			break
+		}
+
+		if !s.shouldContinuePagination(page) {
+			break
+		}
+
+		req.Cursor, err = s.getNextPageCursor(page)
+		if err != nil {
+			return decimal.Zero, decimal.Zero, err
+		}
+		if req.Cursor == "" {
+			break
+		}
+	}
+
+	return accumulator.totalCredits, accumulator.totalDebits, nil
 }
 
 func (s *StatementService) processTransactionPage(
@@ -247,17 +324,16 @@ func (s *StatementService) processTransactionPage(
 			return true, nil
 		}
 
-		lines, credits, debits, walletIDs, err := s.processTransaction(ctx, &tx, accountAddress, asset)
+		lines, credits, debits, err := s.processTransaction(ctx, &tx, accountAddress, asset)
 		if err != nil {
 			return false, err
 		}
 
-		accumulator.transactions = append(accumulator.transactions, lines...)
+		if accumulator.collectTransactions {
+			accumulator.transactions = append(accumulator.transactions, lines...)
+		}
 		accumulator.totalCredits = accumulator.totalCredits.Add(credits)
 		accumulator.totalDebits = accumulator.totalDebits.Add(debits)
-		for _, id := range walletIDs {
-			accumulator.walletIDSet[id] = struct{}{}
-		}
 	}
 	return false, nil
 }
@@ -282,28 +358,27 @@ func (s *StatementService) processTransaction(
 	tx *horizon.Transaction,
 	accountAddress string,
 	asset *data.Asset,
-) ([]StatementTransaction, decimal.Decimal, decimal.Decimal, []string, error) {
+) ([]StatementTransaction, decimal.Decimal, decimal.Decimal, error) {
 	opsPage, err := s.HorizonClient.Operations(horizonclient.OperationRequest{ForTransaction: tx.Hash})
 	if err != nil {
-		return nil, decimal.Zero, decimal.Decimal{}, nil, fmt.Errorf("fetching operations for tx %s: %w", tx.Hash, err)
+		return nil, decimal.Zero, decimal.Zero, fmt.Errorf("fetching operations for tx %s: %w", tx.Hash, err)
 	}
 
 	var lines []StatementTransaction
 	var credits, debits decimal.Decimal
-	var walletIDs []string
 	createdAtStr := tx.LedgerCloseTime.UTC().Format(time.RFC3339)
 
 	for i := range opsPage.Embedded.Records {
 		op := opsPage.Embedded.Records[i]
-		payment, ok := op.(operations.Payment)
+		from, to, amountStr, paymentAsset, opID, ok := extractPaymentOperation(op)
 		if !ok {
 			continue
 		}
-		if !assetMatchesHorizonAsset(asset, payment.Asset) {
+		if !assetMatchesHorizonAsset(asset, paymentAsset) {
 			continue
 		}
 
-		amount, err := decimal.NewFromString(payment.Amount)
+		amount, err := decimal.NewFromString(amountStr)
 		if err != nil {
 			continue
 		}
@@ -311,35 +386,81 @@ func (s *StatementService) processTransaction(
 			continue
 		}
 
+		var dbPayment *data.Payment
+		dbPayment, err = s.Models.Payment.GetByStellarTransactionIDAndOperationID(ctx, s.Models.DBConnectionPool, tx.Hash, opID)
+		if err != nil && errors.Is(err, data.ErrRecordNotFound) {
+			dbPayment, err = s.Models.Payment.GetByStellarTransactionID(ctx, s.Models.DBConnectionPool, tx.Hash)
+		}
+		if err != nil {
+			dbPayment = nil
+		}
+
+		updatedAtStr := createdAtStr
+		counterpartyName := ""
+		externalPaymentID := ""
+		if dbPayment != nil {
+			if t, ok := dbPayment.StatusHistory.GetSuccessTimestamp(); ok {
+				updatedAtStr = t.UTC().Format(time.RFC3339)
+			}
+			if dbPayment.ReceiverWallet != nil && dbPayment.ReceiverWallet.Receiver.ExternalID != "" {
+				counterpartyName = dbPayment.ReceiverWallet.Receiver.ExternalID
+			}
+			externalPaymentID = dbPayment.ExternalPaymentID
+		}
+		if counterpartyName == "" {
+			counterpartyName, _ = s.resolveCounterparty(ctx, from)
+			if counterpartyName == "" {
+				counterpartyName, _ = s.resolveCounterparty(ctx, to)
+			}
+		}
+
 		var txType string
 		var counterparty string
-		if payment.From == accountAddress {
+		if from == accountAddress {
 			txType = "debit"
-			counterparty = payment.To
+			counterparty = to
 			debits = debits.Add(amount)
 		} else {
 			txType = "credit"
-			counterparty = payment.From
+			counterparty = from
 			credits = credits.Add(amount)
-		}
-
-		name, walletID := s.resolveCounterparty(ctx, counterparty)
-		if walletID != "" {
-			walletIDs = append(walletIDs, walletID)
 		}
 
 		lines = append(lines, StatementTransaction{
 			ID:                  tx.Hash,
 			CreatedAt:           createdAtStr,
+			UpdatedAt:           updatedAtStr,
 			Type:                txType,
-			Amount:              payment.Amount,
-			CounterpartyAddress:  counterparty,
-			CounterpartyName:    name,
-			WalletID:            walletID,
+			Amount:              amountStr,
+			CounterpartyAddress: counterparty,
+			CounterpartyName:    counterpartyName,
+			ExternalPaymentID:   externalPaymentID,
 		})
 	}
 
-	return lines, credits, debits, walletIDs, nil
+	return lines, credits, debits, nil
+}
+
+// extractPaymentOperation returns (from, to, amount, destination asset, operation ID, true) for
+// payment-like operations (Payment, PathPayment, PathPaymentStrictSend). Path payments are included
+// so credits received via path payments appear in the statement.
+func extractPaymentOperation(op operations.Operation) (from, to, amountStr string, paymentAsset base.Asset, opID string, ok bool) {
+	switch v := op.(type) {
+	case operations.Payment:
+		return v.From, v.To, v.Amount, v.Asset, v.GetID(), true
+	case *operations.Payment:
+		return v.From, v.To, v.Amount, v.Asset, v.GetID(), true
+	case operations.PathPayment:
+		return v.From, v.To, v.Amount, v.Asset, v.GetID(), true
+	case *operations.PathPayment:
+		return v.From, v.To, v.Amount, v.Asset, v.GetID(), true
+	case operations.PathPaymentStrictSend:
+		return v.From, v.To, v.Amount, v.Asset, v.GetID(), true
+	case *operations.PathPaymentStrictSend:
+		return v.From, v.To, v.Amount, v.Asset, v.GetID(), true
+	default:
+		return "", "", "", base.Asset{}, "", false
+	}
 }
 
 func assetMatchesHorizonAsset(asset *data.Asset, h base.Asset) bool {
@@ -354,24 +475,9 @@ func (s *StatementService) resolveCounterparty(ctx context.Context, stellarAddre
 	if err != nil {
 		return "", ""
 	}
-	name = rw.Receiver.Email
-	if name == "" {
-		name = rw.Receiver.PhoneNumber
-	}
-	if name == "" {
-		name = rw.Receiver.ExternalID
-	}
-	return name, rw.Wallet.ID
+	return rw.Receiver.ExternalID, rw.Wallet.ID
 }
 
 func formatStellarAmount(d decimal.Decimal) string {
 	return d.StringFixed(7)
-}
-
-func mapKeysToSlice(m map[string]struct{}) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }
