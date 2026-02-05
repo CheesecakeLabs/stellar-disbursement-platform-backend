@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stellar/stellar-disbursement-platform-backend/internal/services"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/validators"
+	"github.com/stellar/stellar-disbursement-platform-backend/internal/services"
 	sigMocks "github.com/stellar/stellar-disbursement-platform-backend/internal/transactionsubmission/engine/signing/mocks"
 	"github.com/stellar/stellar-disbursement-platform-backend/pkg/schema"
 )
@@ -63,8 +63,8 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 		expectedContains string
 	}{
 		{
-			name:   "returns 200 when asset_code is omitted (all assets)",
-			query:  "?from_date=2026-01-01&to_date=2026-01-31",
+			name:  "returns 200 when asset_code is omitted (all assets)",
+			query: "?from_date=2026-01-01&to_date=2026-01-31",
 			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(stellarAccount, nil).
@@ -81,22 +81,22 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 			expectedContains: "summary",
 		},
 		{
-			name:   "returns 400 when from_date is missing",
-			query:  "?asset_code=XLM&to_date=2026-01-31",
-			prepareMocks: func(_ *mockStatementService, _ *sigMocks.MockDistributionAccountResolver) {},
+			name:             "returns 400 when from_date is missing",
+			query:            "?asset_code=XLM&to_date=2026-01-31",
+			prepareMocks:     func(_ *mockStatementService, _ *sigMocks.MockDistributionAccountResolver) {},
 			expectedStatus:   http.StatusBadRequest,
 			expectedContains: "from_date",
 		},
 		{
-			name:   "returns 400 when to_date is missing",
-			query:  "?asset_code=XLM&from_date=2026-01-01",
-			prepareMocks: func(_ *mockStatementService, _ *sigMocks.MockDistributionAccountResolver) {},
+			name:             "returns 400 when to_date is missing",
+			query:            "?asset_code=XLM&from_date=2026-01-01",
+			prepareMocks:     func(_ *mockStatementService, _ *sigMocks.MockDistributionAccountResolver) {},
 			expectedStatus:   http.StatusBadRequest,
 			expectedContains: "to_date",
 		},
 		{
-			name:   "returns 500 when distribution account resolver fails",
-			query:  testQueryParams,
+			name:  "returns 500 when distribution account resolver fails",
+			query: testQueryParams,
 			prepareMocks: func(_ *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(schema.TransactionAccount{}, errors.New("resolver error")).
@@ -106,8 +106,8 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 			expectedContains: "Cannot retrieve distribution account",
 		},
 		{
-			name:   "returns 400 when account is not Stellar",
-			query:  testQueryParams,
+			name:  "returns 400 when account is not Stellar",
+			query: testQueryParams,
 			prepareMocks: func(_ *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(schema.TransactionAccount{Type: schema.DistributionAccountCircleDBVault}, nil).
@@ -117,8 +117,8 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 			expectedContains: "only supported for Stellar",
 		},
 		{
-			name:   "returns 404 when asset not found for account",
-			query:  testQueryParams,
+			name:  "returns 404 when asset not found for account",
+			query: testQueryParams,
 			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(stellarAccount, nil).
@@ -135,8 +135,8 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 			expectedContains: "asset not found",
 		},
 		{
-			name:   "returns 500 when statement service fails with unexpected error",
-			query:  testQueryParams,
+			name:  "returns 500 when statement service fails with unexpected error",
+			query: testQueryParams,
 			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(stellarAccount, nil).
@@ -153,8 +153,8 @@ func TestStatementsHandlerGetStatement(t *testing.T) {
 			expectedContains: "Cannot retrieve statement",
 		},
 		{
-			name:   "returns 200 and JSON shape on success",
-			query:  testQueryParams,
+			name:  "returns 200 and JSON shape on success",
+			query: testQueryParams,
 			prepareMocks: func(mSvc *mockStatementService, mResolver *sigMocks.MockDistributionAccountResolver) {
 				mResolver.On("DistributionAccountFromContext", mock.Anything).
 					Return(stellarAccount, nil).

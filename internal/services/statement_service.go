@@ -47,11 +47,11 @@ type StatementSummary struct {
 
 // StatementAssetSummary holds per-asset summary and transactions.
 type StatementAssetSummary struct {
-	Code             string                `json:"code"`
-	BeginningBalance string                `json:"beginning_balance"`
-	TotalCredits     string                `json:"total_credits"`
-	TotalDebits      string                `json:"total_debits"`
-	EndingBalance    string                `json:"ending_balance"`
+	Code             string                 `json:"code"`
+	BeginningBalance string                 `json:"beginning_balance"`
+	TotalCredits     string                 `json:"total_credits"`
+	TotalDebits      string                 `json:"total_debits"`
+	EndingBalance    string                 `json:"ending_balance"`
 	Transactions     []StatementTransaction `json:"transactions"`
 }
 
@@ -81,9 +81,9 @@ type StatementTotals struct {
 
 // StatementService generates account statements from Horizon and DB.
 type StatementService struct {
-	HorizonClient             horizonclient.ClientInterface
-	DistributionAccountSvc   DistributionAccountServiceInterface
-	Models                    *data.Models
+	HorizonClient          horizonclient.ClientInterface
+	DistributionAccountSvc DistributionAccountServiceInterface
+	Models                 *data.Models
 }
 
 // NewStatementService creates a new StatementService.
@@ -93,9 +93,9 @@ func NewStatementService(
 	models *data.Models,
 ) *StatementService {
 	return &StatementService{
-		HorizonClient:           horizonClient,
+		HorizonClient:          horizonClient,
 		DistributionAccountSvc: distSvc,
-		Models:                  models,
+		Models:                 models,
 	}
 }
 
@@ -408,9 +408,9 @@ func (s *StatementService) processTransaction(
 			externalPaymentID = dbPayment.ExternalPaymentID
 		}
 		if counterpartyName == "" {
-			counterpartyName, _ = s.resolveCounterparty(ctx, from)
+			counterpartyName = s.resolveCounterparty(ctx, from)
 			if counterpartyName == "" {
-				counterpartyName, _ = s.resolveCounterparty(ctx, to)
+				counterpartyName = s.resolveCounterparty(ctx, to)
 			}
 		}
 
@@ -470,12 +470,12 @@ func assetMatchesHorizonAsset(asset *data.Asset, h base.Asset) bool {
 	return asset.Code == h.Code && (asset.Issuer == h.Issuer || (asset.Issuer == "" && h.Issuer == ""))
 }
 
-func (s *StatementService) resolveCounterparty(ctx context.Context, stellarAddress string) (name, walletID string) {
+func (s *StatementService) resolveCounterparty(ctx context.Context, stellarAddress string) string {
 	rw, err := s.Models.ReceiverWallet.GetByStellarAddress(ctx, stellarAddress)
 	if err != nil {
-		return "", ""
+		return ""
 	}
-	return rw.Receiver.ExternalID, rw.Wallet.ID
+	return rw.Receiver.ExternalID
 }
 
 func formatStellarAmount(d decimal.Decimal) string {
