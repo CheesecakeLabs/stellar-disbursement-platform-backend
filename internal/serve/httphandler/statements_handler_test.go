@@ -19,8 +19,10 @@ import (
 	"github.com/stellar/stellar-disbursement-platform-backend/pkg/schema"
 )
 
-const testQueryParams = "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31"
-const emptyBalance = "0.0000000"
+const (
+	testQueryParams = "?asset_code=XLM&from_date=2026-01-01&to_date=2026-01-31"
+	emptyBalance    = "0.0000000"
+)
 
 type mockStatementService struct {
 	mock.Mock
