@@ -115,14 +115,9 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	assetPart := params.AssetCode
-	if assetPart == "" {
-		assetPart = "all"
-	}
-	filename := fmt.Sprintf("statement_%s_%s_%s.pdf",
-		assetPart,
-		params.FromDate.Format("2006-01-02"),
-		params.ToDate.Format("2006-01-02"))
+	filename := fmt.Sprintf("statement_%s-%s.pdf",
+		params.FromDate.Format("20060102"),
+		params.ToDate.Format("20060102"))
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	if _, err := w.Write(pdfBytes); err != nil {
