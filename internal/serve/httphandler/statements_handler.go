@@ -8,7 +8,7 @@ import (
 	"github.com/stellar/go-stellar-sdk/support/render/httpjson"
 
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/data"
-	"github.com/stellar/stellar-disbursement-platform-backend/internal/pdf"
+	"github.com/stellar/stellar-disbursement-platform-backend/internal/pdf/statement"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/httperror"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/serve/validators"
 	"github.com/stellar/stellar-disbursement-platform-backend/internal/services"
@@ -109,7 +109,7 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	pdfBytes, err := pdf.BuildPDF(result, params.FromDate, params.ToDate, orgName, orgLogo)
+	pdfBytes, err := statement.BuildPDF(result, params.FromDate, params.ToDate, orgName, orgLogo)
 	if err != nil {
 		httperror.InternalError(ctx, "Cannot generate statement PDF", err, nil).Render(w)
 		return
