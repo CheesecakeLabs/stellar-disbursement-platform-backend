@@ -109,7 +109,7 @@ func (h StatementsHandler) GetStatementExport(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	pdfBytes, err := statement.BuildPDF(result, params.FromDate, params.ToDate, orgName, orgLogo)
+	pdfBytes, err := statement.BuildPDF(result, params.FromDate, params.ToDate, orgName, orgLogo, params.OperatedByBaseURL)
 	if err != nil {
 		httperror.InternalError(ctx, "Cannot generate statement PDF", err, nil).Render(w)
 		return
