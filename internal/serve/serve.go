@@ -374,7 +374,6 @@ func handleHTTP(o ServeOptions) *chi.Mux {
 			)).Group(func(r chi.Router) {
 				r.Get("/", paymentsHandler.GetPayments)
 				r.Get("/{id}", paymentsHandler.GetPayment)
-				r.Get("/{id}/export", paymentsHandler.GetPaymentExport)
 			})
 
 			// Write operations with different role permissions
@@ -573,25 +572,28 @@ func handleHTTP(o ServeOptions) *chi.Mux {
 			NetworkType:                 o.NetworkType,
 		}.Get)
 
-		statementService := services.NewStatementService(
+		reportsService := services.NewReportsService(
 			o.SubmitterEngine.HorizonClient,
 			o.DistributionAccountService,
 			o.Models,
 		)
-		statementsHandler := httphandler.StatementsHandler{
+		reportsHandler := httphandler.ReportsHandler{
 			DistributionAccountResolver: o.SubmitterEngine.DistributionAccountResolver,
-			StatementService:            statementService,
+			ReportsService:              reportsService,
 			StatementQueryValidator:     validators.NewStatementQueryValidator(),
 			Models:                      o.Models,
+			DBConnectionPool:            o.MtnDBConnectionPool,
+			HorizonClient:               o.SubmitterEngine.HorizonClient,
+			AuthManager:                 authManager,
 		}
 		r.With(middleware.RequirePermission(
 			data.ReadAll,
 			middleware.AnyRoleMiddleware(authManager),
-		)).Get("/statements", statementsHandler.GetStatement)
+		)).Get("/reports/statement", reportsHandler.GetStatementExport)
 		r.With(middleware.RequirePermission(
-			data.ReadAll,
-			middleware.AnyRoleMiddleware(authManager),
-		)).Get("/statements/export", statementsHandler.GetStatementExport)
+			data.ReadPayments,
+			middleware.AnyRoleMiddleware(authManager, data.GetBusinessOperationRoles()...),
+		)).Get("/reports/payment/{id}", reportsHandler.GetPaymentExport)
 
 		exportHandler := httphandler.ExportHandler{
 			Models: o.Models,

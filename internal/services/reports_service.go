@@ -29,8 +29,8 @@ var (
 	ErrStatementAssetNotFound     = errors.New("asset not found for account")
 )
 
-// StatementServiceInterface defines the interface for generating account statements.
-type StatementServiceInterface interface {
+// ReportsServiceInterface defines the interface for generating account statements (used by reports handler).
+type ReportsServiceInterface interface {
 	GetStatement(ctx context.Context, account *schema.TransactionAccount, assetCode string, fromDate, toDate time.Time) (*StatementResult, error)
 }
 
@@ -79,30 +79,30 @@ type StatementTotals struct {
 	Balance      string `json:"balance"`
 }
 
-// StatementService generates account statements from Horizon and DB.
-type StatementService struct {
+// ReportsService generates account statements from Horizon and DB (for report PDFs).
+type ReportsService struct {
 	HorizonClient          horizonclient.ClientInterface
 	DistributionAccountSvc DistributionAccountServiceInterface
 	Models                 *data.Models
 }
 
-// NewStatementService creates a new StatementService.
-func NewStatementService(
+// NewReportsService creates a new ReportsService.
+func NewReportsService(
 	horizonClient horizonclient.ClientInterface,
 	distSvc DistributionAccountServiceInterface,
 	models *data.Models,
-) *StatementService {
-	return &StatementService{
+) *ReportsService {
+	return &ReportsService{
 		HorizonClient:          horizonClient,
 		DistributionAccountSvc: distSvc,
 		Models:                 models,
 	}
 }
 
-var _ StatementServiceInterface = (*StatementService)(nil)
+var _ ReportsServiceInterface = (*ReportsService)(nil)
 
 // GetStatement returns the statement for the given account, asset (optional), and date range.
-func (s *StatementService) GetStatement(ctx context.Context, account *schema.TransactionAccount, assetCode string, fromDate, toDate time.Time) (*StatementResult, error) {
+func (s *ReportsService) GetStatement(ctx context.Context, account *schema.TransactionAccount, assetCode string, fromDate, toDate time.Time) (*StatementResult, error) {
 	if !account.IsStellar() {
 		return nil, ErrStatementAccountNotStellar
 	}
@@ -188,7 +188,7 @@ func (s *StatementService) GetStatement(ctx context.Context, account *schema.Tra
 	}, nil
 }
 
-func (s *StatementService) resolveAsset(ctx context.Context, assetCode string) (*data.Asset, error) {
+func (s *ReportsService) resolveAsset(ctx context.Context, assetCode string) (*data.Asset, error) {
 	code := assetCode
 	if code == assets.XLMAssetCodeAlias {
 		code = assets.XLMAssetCode
@@ -216,7 +216,7 @@ type transactionAccumulator struct {
 	collectTransactions bool
 }
 
-func (s *StatementService) fetchTransactionsInRange(
+func (s *ReportsService) fetchTransactionsInRange(
 	ctx context.Context,
 	accountAddress string,
 	asset *data.Asset,
@@ -261,7 +261,7 @@ func (s *StatementService) fetchTransactionsInRange(
 }
 
 // fetchTotalsInRange returns total credits and debits in the given range without building the transaction list.
-func (s *StatementService) fetchTotalsInRange(
+func (s *ReportsService) fetchTotalsInRange(
 	ctx context.Context,
 	accountAddress string,
 	asset *data.Asset,
@@ -305,7 +305,7 @@ func (s *StatementService) fetchTotalsInRange(
 	return accumulator.totalCredits, accumulator.totalDebits, nil
 }
 
-func (s *StatementService) processTransactionPage(
+func (s *ReportsService) processTransactionPage(
 	ctx context.Context,
 	page horizon.TransactionsPage,
 	accountAddress string,
@@ -338,11 +338,11 @@ func (s *StatementService) processTransactionPage(
 	return false, nil
 }
 
-func (s *StatementService) shouldContinuePagination(page horizon.TransactionsPage) bool {
+func (s *ReportsService) shouldContinuePagination(page horizon.TransactionsPage) bool {
 	return len(page.Embedded.Records) >= StatementTransactionsPageLimit
 }
 
-func (s *StatementService) getNextPageCursor(page horizon.TransactionsPage) (string, error) {
+func (s *ReportsService) getNextPageCursor(page horizon.TransactionsPage) (string, error) {
 	nextPage, err := s.HorizonClient.NextTransactionsPage(page)
 	if err != nil {
 		return "", fmt.Errorf("next transactions page: %w", err)
@@ -353,7 +353,7 @@ func (s *StatementService) getNextPageCursor(page horizon.TransactionsPage) (str
 	return nextPage.Embedded.Records[0].PT, nil
 }
 
-func (s *StatementService) processTransaction(
+func (s *ReportsService) processTransaction(
 	ctx context.Context,
 	tx *horizon.Transaction,
 	accountAddress string,
@@ -470,7 +470,7 @@ func assetMatchesHorizonAsset(asset *data.Asset, h base.Asset) bool {
 	return asset.Code == h.Code && (asset.Issuer == h.Issuer || (asset.Issuer == "" && h.Issuer == ""))
 }
 
-func (s *StatementService) resolveCounterparty(ctx context.Context, stellarAddress string) string {
+func (s *ReportsService) resolveCounterparty(ctx context.Context, stellarAddress string) string {
 	rw, err := s.Models.ReceiverWallet.GetByStellarAddress(ctx, stellarAddress)
 	if err != nil {
 		return ""

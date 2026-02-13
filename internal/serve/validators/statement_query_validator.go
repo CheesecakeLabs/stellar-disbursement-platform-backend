@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// StatementQueryParams holds validated query parameters for the statement endpoint.
+// StatementQueryParams holds validated query parameters for GET /reports/statement.
 type StatementQueryParams struct {
 	AssetCode         string
 	FromDate          time.Time
@@ -14,7 +14,7 @@ type StatementQueryParams struct {
 	OperatedByBaseURL string // optional
 }
 
-// StatementQueryValidator validates query parameters for GET /statements.
+// StatementQueryValidator validates query parameters for GET /reports/statement.
 type StatementQueryValidator struct {
 	QueryValidator
 }
