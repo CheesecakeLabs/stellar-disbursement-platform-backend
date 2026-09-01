@@ -21,6 +21,7 @@ v1_compatibility/stellar-relief-backoffice-backend
 
 # Project binary:
 stellar-disbursement-platform-backend
+tmp/
 
 # Text Editors
 .vscode
