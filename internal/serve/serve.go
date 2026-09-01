@@ -580,7 +580,6 @@ func handleHTTP(o ServeOptions) *chi.Mux {
 		reportsHandler := httphandler.ReportsHandler{
 			DistributionAccountResolver: o.SubmitterEngine.DistributionAccountResolver,
 			ReportsService:              reportsService,
-			StatementQueryValidator:     validators.NewStatementQueryValidator(),
 			Models:                      o.Models,
 			DBConnectionPool:            o.MtnDBConnectionPool,
 			HorizonClient:               o.SubmitterEngine.HorizonClient,
@@ -618,6 +617,13 @@ func handleHTTP(o ServeOptions) *chi.Mux {
 	// Public routes that are tenant aware (they need to know the tenant ID)
 	mux.Group(func(r chi.Router) {
 		r.Use(middleware.EnsureTenantMiddleware)
+
+		r.Get("/app-config", httphandler.AppConfigHandler{
+			Models:            o.Models,
+			CAPTCHAType:       o.CAPTCHAType,
+			ReCAPTCHASiteKey:  o.ReCAPTCHASiteKey,
+			ReCAPTCHADisabled: o.DisableReCAPTCHA,
+		}.ServeHTTP)
 
 		r.Get("/organization/logo", httphandler.OrganizationLogoHandler{
 			Models:        o.Models,

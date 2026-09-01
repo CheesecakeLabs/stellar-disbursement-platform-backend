@@ -61,6 +61,7 @@ type PatchOrganizationProfileRequest struct {
 	PrivacyPolicyLink                   *string `json:"privacy_policy_link"`
 	MFADisabled                         *bool   `json:"mfa_disabled"`
 	CAPTCHADisabled                     *bool   `json:"captcha_disabled"`
+	ReportingEnabled                    *bool   `json:"reporting_enabled"`
 }
 
 func (r *PatchOrganizationProfileRequest) AreAllFieldsEmpty() bool {
@@ -193,6 +194,7 @@ func (h ProfileHandler) PatchOrganizationProfile(rw http.ResponseWriter, req *ht
 		PrivacyPolicyLink:                    reqBody.PrivacyPolicyLink,
 		MFADisabled:                          reqBody.MFADisabled,
 		CAPTCHADisabled:                      reqBody.CAPTCHADisabled,
+		ReportingEnabled:                     reqBody.ReportingEnabled,
 	}
 	requestDict, err := utils.ConvertType[data.OrganizationUpdate, map[string]interface{}](organizationUpdate)
 	if err != nil {
@@ -363,21 +365,22 @@ func (h ProfileHandler) GetOrganizationInfo(rw http.ResponseWriter, req *http.Re
 	}
 
 	resp := map[string]any{
-		"name":                                     org.Name,
-		"logo_url":                                 logoURL,
-		"base_url":                                 currentTenant.BaseURL,
-		"distribution_account":                     distributionAccount,
-		"distribution_account_public_key":          distributionAccount.Address, // TODO: deprecate `distribution_account_public_key`
-		"timezone_utc_offset":                      org.TimezoneUTCOffset,
-		"is_approval_required":                     org.IsApprovalRequired,
-		"is_link_shortener_enabled":                org.IsLinkShortenerEnabled,
-		"is_memo_tracing_enabled":                  org.IsMemoTracingEnabled,
+		"name":                            org.Name,
+		"logo_url":                        logoURL,
+		"base_url":                        currentTenant.BaseURL,
+		"distribution_account":            distributionAccount,
+		"distribution_account_public_key": distributionAccount.Address, // TODO: deprecate `distribution_account_public_key`
+		"timezone_utc_offset":             org.TimezoneUTCOffset,
+		"is_approval_required":            org.IsApprovalRequired,
+		"is_link_shortener_enabled":       org.IsLinkShortenerEnabled,
+		"is_memo_tracing_enabled":         org.IsMemoTracingEnabled,
 		"receiver_invitation_resend_interval_days": 0,
 		"payment_cancellation_period_days":         0,
 		"privacy_policy_link":                      org.PrivacyPolicyLink,
 		"message_channel_priority":                 org.MessageChannelPriority,
 		"mfa_disabled":                             org.MFADisabled,
 		"captcha_disabled":                         org.CAPTCHADisabled,
+		"reporting_enabled":                        org.ReportingEnabled,
 	}
 
 	if org.ReceiverRegistrationMessageTemplate != data.DefaultReceiverRegistrationMessageTemplate {
