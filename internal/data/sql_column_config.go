@@ -13,8 +13,8 @@ type SQLColumnConfig struct {
 	ResultAlias string
 	// RawColumns is the list of column names to process
 	RawColumns []string
-	// CoalesceColumns indicates which columns should be wrapped in COALESCE(col, '')
-	CoalesceColumns []string
+	// CoalesceStringColumns indicates which columns should be wrapped in COALESCE(col, '')
+	CoalesceStringColumns []string
 }
 
 // Build creates a slice of SQL column expressions based on the provided configuration.
@@ -60,7 +60,7 @@ func (c SQLColumnConfig) Build() []string {
 	}
 
 	// Process coalesce columns
-	for _, col := range c.CoalesceColumns {
+	for _, col := range c.CoalesceStringColumns {
 		processColumn(col, true)
 	}
 
