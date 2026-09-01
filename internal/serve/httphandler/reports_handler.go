@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stellar/go-stellar-sdk/clients/horizonclient"
@@ -32,7 +34,6 @@ const (
 type ReportsHandler struct {
 	DistributionAccountResolver signing.DistributionAccountResolver
 	ReportsService              services.ReportsServiceInterface
-	StatementQueryValidator     *validators.StatementQueryValidator
 	Models                      *data.Models
 	DBConnectionPool            db.DBConnectionPool
 	HorizonClient               horizonclient.ClientInterface
@@ -43,9 +44,10 @@ type ReportsHandler struct {
 func (h ReportsHandler) GetStatementExport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	params := h.StatementQueryValidator.ValidateAndGetStatementParams(r)
-	if h.StatementQueryValidator.HasErrors() {
-		httperror.BadRequest("invalid query parameters", nil, h.StatementQueryValidator.Validator.Errors).Render(w)
+	v := validators.NewStatementQueryValidator()
+	params := v.ValidateAndGetStatementParams(r)
+	if v.HasErrors() {
+		httperror.BadRequest("invalid query parameters", nil, v.Validator.Errors).Render(w)
 		return
 	}
 
@@ -94,9 +96,10 @@ func (h ReportsHandler) GetStatementExport(w http.ResponseWriter, r *http.Reques
 		params.FromDate.Format("20060102"),
 		params.ToDate.Format("20060102"))
 	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Length", strconv.Itoa(len(pdfBytes)))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	if _, err := w.Write(pdfBytes); err != nil {
-		httperror.InternalError(ctx, "Cannot write statement PDF", err, nil).Render(w)
+		log.Ctx(ctx).Errorf("writing statement PDF response: %v", err)
 		return
 	}
 }
@@ -119,8 +122,8 @@ func (h ReportsHandler) GetPaymentExport(w http.ResponseWriter, r *http.Request)
 	}
 
 	internalNotes := strings.TrimSpace(r.URL.Query().Get("internal_notes"))
-	if len(internalNotes) > internalNotesMaxLength {
-		internalNotes = internalNotes[:internalNotesMaxLength]
+	if utf8.RuneCountInString(internalNotes) > internalNotesMaxLength {
+		internalNotes = string([]rune(internalNotes)[:internalNotesMaxLength])
 	}
 	var internalNotesPtr *string
 	if internalNotes != "" {
@@ -158,7 +161,12 @@ func (h ReportsHandler) GetPaymentExport(w http.ResponseWriter, r *http.Request)
 				log.Ctx(ctx).Warnf("fetching transaction fee from Horizon for %s: %v", payment.StellarTransactionID, hErr)
 			} else {
 				// FeeCharged is in stroops (1 XLM = 10^7 stroops)
-				feeCharged = fmt.Sprintf("%.5f XLM", float64(hTx.FeeCharged)/1e7)
+				whole := hTx.FeeCharged / 1e7
+				frac := hTx.FeeCharged % 1e7
+				if frac < 0 {
+					frac = -frac
+				}
+				feeCharged = fmt.Sprintf("%d.%07d XLM", whole, frac)
 				memoText = hTx.Memo
 			}
 		}
@@ -183,9 +191,10 @@ func (h ReportsHandler) GetPaymentExport(w http.ResponseWriter, r *http.Request)
 
 	filename := fmt.Sprintf("transaction_notice_%s.pdf", paymentID)
 	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Length", strconv.Itoa(len(pdfBytes)))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	if _, err := w.Write(pdfBytes); err != nil {
-		httperror.InternalError(ctx, "Cannot write transaction notice PDF", err, nil).Render(w)
+		log.Ctx(ctx).Errorf("writing transaction notice PDF response: %v", err)
 		return
 	}
 }
