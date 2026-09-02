@@ -208,7 +208,7 @@ func Test_TransactionModel_BulkInsert(t *testing.T) {
 			ExternalID:  "external-id-1",
 			AssetCode:   "USDC",
 			AssetIssuer: keypair.MustRandom().Address(),
-			// Lowest number in the Stellar network (ref: https://developers.stellar.org/docs/fundamentals-and-concepts/stellar-data-structures/assets#amount-precision):
+			// Lowest number in the Stellar network (ref: https://developers.stellar.org/docs/learn/fundamentals/stellar-data-structures/assets#amount-precision):
 			Amount:      decimal.NewFromFloat(0.0000001),
 			Destination: keypair.MustRandom().Address(),
 			TenantID:    uuid.NewString(),
@@ -217,7 +217,7 @@ func Test_TransactionModel_BulkInsert(t *testing.T) {
 			ExternalID:  "external-id-2",
 			AssetCode:   "USDC",
 			AssetIssuer: keypair.MustRandom().Address(),
-			// Largest number in the Stellar network (ref: https://developers.stellar.org/docs/fundamentals-and-concepts/stellar-data-structures/assets#amount-precision):
+			// Largest number in the Stellar network (ref: https://developers.stellar.org/docs/learn/fundamentals/stellar-data-structures/assets#amount-precision):
 			Amount:      decimal.RequireFromString("922337203685.4775807"),
 			Destination: keypair.MustRandom().Address(),
 			TenantID:    uuid.NewString(),
@@ -510,7 +510,7 @@ func Test_TransactionModel_UpdateStellarTransactionHashAndXDRSent(t *testing.T) 
 			assert.Len(t, originalTx.StatusHistory, 1)
 			initialStatusHistory := originalTx.StatusHistory[0]
 
-			updatedTx, err := txModel.UpdateStellarTransactionHashAndXDRSent(ctx, tx.ID, tc.txHash, tc.xdrSent)
+			updatedTx, err := txModel.UpdateStellarTransactionHashAndXDRSent(ctx, tx.ID, tc.txHash, tc.xdrSent, "GDISTACCOUNT")
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tc.wantErrContains)
@@ -518,6 +518,8 @@ func Test_TransactionModel_UpdateStellarTransactionHashAndXDRSent(t *testing.T) 
 			} else {
 				// check if object has been updated correctly
 				require.NoError(t, err)
+				assert.True(t, updatedTx.DistributionAccount.Valid)
+				assert.Equal(t, "GDISTACCOUNT", updatedTx.DistributionAccount.String)
 				assert.True(t, updatedTx.XDRSent.Valid)
 				assert.Equal(t, envelopeXDR, updatedTx.XDRSent.String)
 				assert.True(t, updatedTx.StellarTransactionHash.Valid)
@@ -546,6 +548,7 @@ func Test_TransactionModel_UpdateStellarTransactionHashAndXDRSent(t *testing.T) 
 				originalTx.UpdatedAt = refreshedTx.UpdatedAt
 				originalTx.StatusHistory = wantStatusHistory
 				originalTx.AttemptsCount += 1
+				originalTx.DistributionAccount = refreshedTx.DistributionAccount
 				assert.Equal(t, refreshedTx, originalTx)
 			}
 		})
