@@ -540,12 +540,12 @@ func newClientWithMocks(t *testing.T) (*Client, *clientMocks) {
 	httpClientMock := httpclientMocks.NewHTTPClientMock(t)
 
 	return &Client{
-			baseURL:    "https://api.bridge.example.com",
-			apiKey:     "test-api-key",
-			httpClient: httpClientMock,
-		}, &clientMocks{
-			httpClientMock: httpClientMock,
-		}
+		baseURL:    "https://api.bridge.example.com",
+		apiKey:     "test-api-key",
+		httpClient: httpClientMock,
+	}, &clientMocks{
+		httpClientMock: httpClientMock,
+	}
 }
 
 type clientMocks struct {

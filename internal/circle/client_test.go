@@ -942,16 +942,16 @@ func newClientWithMocks(t *testing.T) (Client, *clientMocks) {
 	monitorSvcMock := monitorMocks.NewMockMonitorService(t)
 
 	return Client{
-			BasePath:       "http://localhost:8080",
-			APIKey:         "test-key",
-			httpClient:     httpClientMock,
-			tenantManager:  tntManagerMock,
-			monitorService: monitorSvcMock,
-		}, &clientMocks{
-			httpClientMock:     httpClientMock,
-			tenantManagerMock:  tntManagerMock,
-			monitorServiceMock: monitorSvcMock,
-		}
+		BasePath:       "http://localhost:8080",
+		APIKey:         "test-key",
+		httpClient:     httpClientMock,
+		tenantManager:  tntManagerMock,
+		monitorService: monitorSvcMock,
+	}, &clientMocks{
+		httpClientMock:     httpClientMock,
+		tenantManagerMock:  tntManagerMock,
+		monitorServiceMock: monitorSvcMock,
+	}
 }
 
 type clientMocks struct {

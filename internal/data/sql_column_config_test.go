@@ -93,8 +93,8 @@ func Test_SQLColumnConfig_Build(t *testing.T) {
 		{
 			name: "all features",
 			config: SQLColumnConfig{
-				TableReference:  "rw",
-				ResultAlias:     "receiver_wallet",
+				TableReference:        "rw",
+				ResultAlias:           "receiver_wallet",
 				CoalesceStringColumns: []string{`receiver_id::text AS "receiver.id"`},
 			},
 			expected: []string{`COALESCE(rw.receiver_id::text, '') AS "receiver_wallet.receiver.id"`},
