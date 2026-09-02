@@ -29,7 +29,7 @@ tmp/
 .cursor
 
 # Local AI assistant instructions (not shared via git)
-CLAUDE.md
+CLAUDE.local.md
 
 # Local HTTPS certificates
 dev/certs/
