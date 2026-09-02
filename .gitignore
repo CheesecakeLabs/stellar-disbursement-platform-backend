@@ -28,6 +28,9 @@ tmp/
 .idea
 .cursor
 
+# Local AI assistant instructions (not shared via git)
+CLAUDE.md
+
 # Local HTTPS certificates
 dev/certs/
 
