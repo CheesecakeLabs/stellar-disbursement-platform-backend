@@ -1304,7 +1304,8 @@ func Test_ProfileHandler_GetOrganizationInfo(t *testing.T) {
 				"payment_cancellation_period_days": 0,
 				"message_channel_priority": ["SMS", "EMAIL"],
 				"mfa_disabled": null,
-				"captcha_disabled": null
+				"captcha_disabled": null,
+				"reporting_enabled": false
 			}
 		`, *currentTenant.BaseURL, *currentTenant.BaseURL, newDistAccountJSON(t, *currentTenant.DistributionAccountAddress), *currentTenant.DistributionAccountAddress)
 
@@ -1346,7 +1347,8 @@ func Test_ProfileHandler_GetOrganizationInfo(t *testing.T) {
 				"privacy_policy_link": null,
 				"message_channel_priority": ["SMS", "EMAIL"],
 				"mfa_disabled": null,
-				"captcha_disabled": null
+				"captcha_disabled": null,
+				"reporting_enabled": false
 			}
 		`, *currentTenant.BaseURL, *currentTenant.BaseURL, newDistAccountJSON(t, *currentTenant.DistributionAccountAddress), *currentTenant.DistributionAccountAddress)
 
@@ -1387,7 +1389,8 @@ func Test_ProfileHandler_GetOrganizationInfo(t *testing.T) {
 				"privacy_policy_link": null,
 				"message_channel_priority": ["SMS", "EMAIL"],
 				"mfa_disabled": null,
-				"captcha_disabled": null
+				"captcha_disabled": null,
+				"reporting_enabled": false
 			}
 		`, *currentTenant.BaseURL, *currentTenant.BaseURL, newDistAccountJSON(t, *currentTenant.DistributionAccountAddress), *currentTenant.DistributionAccountAddress)
 
@@ -1430,7 +1433,8 @@ func Test_ProfileHandler_GetOrganizationInfo(t *testing.T) {
 				"privacy_policy_link": null,
 				"message_channel_priority": ["SMS", "EMAIL"],
 				"mfa_disabled": null,
-				"captcha_disabled": null
+				"captcha_disabled": null,
+				"reporting_enabled": false
 			}
 		`, *currentTenant.BaseURL, *currentTenant.BaseURL, newDistAccountJSON(t, *currentTenant.DistributionAccountAddress), *currentTenant.DistributionAccountAddress)
 
@@ -1473,7 +1477,8 @@ func Test_ProfileHandler_GetOrganizationInfo(t *testing.T) {
 				"privacy_policy_link": null,
 				"message_channel_priority": ["SMS", "EMAIL"],
 				"mfa_disabled": null,
-				"captcha_disabled": null
+				"captcha_disabled": null,
+				"reporting_enabled": false
 			}
 		`, *currentTenant.BaseURL, *currentTenant.BaseURL, newDistAccountJSON(t, *currentTenant.DistributionAccountAddress), *currentTenant.DistributionAccountAddress)
 
@@ -1516,7 +1521,8 @@ func Test_ProfileHandler_GetOrganizationInfo(t *testing.T) {
 				"privacy_policy_link": "https://example.com/privacy-policy",
 				"message_channel_priority": ["SMS", "EMAIL"],
 				"mfa_disabled": null,
-				"captcha_disabled": null
+				"captcha_disabled": null,
+				"reporting_enabled": false
 			}
 		`, *currentTenant.BaseURL, *currentTenant.BaseURL, newDistAccountJSON(t, *currentTenant.DistributionAccountAddress), *currentTenant.DistributionAccountAddress)
 

@@ -141,7 +141,7 @@ func TransactionColumnNames(tableReference, resultAlias string) string {
 			"locked_at",
 			"locked_until_ledger_number",
 		},
-		CoalesceColumns: []string{
+		CoalesceStringColumns: []string{
 			"memo",
 			"memo_type::text",
 		},

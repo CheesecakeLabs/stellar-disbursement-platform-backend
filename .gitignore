@@ -21,11 +21,15 @@ v1_compatibility/stellar-relief-backoffice-backend
 
 # Project binary:
 stellar-disbursement-platform-backend
+tmp/
 
 # Text Editors
 .vscode
 .idea
 .cursor
+
+# Local AI assistant instructions (not shared via git)
+CLAUDE.local.md
 
 # Local HTTPS certificates
 dev/certs/
